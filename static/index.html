@@ -154,7 +154,7 @@
   </div>
 
   <!-- PIN LOCK SCREEN -->
-  <div id="pinScreen" class="fixed inset-0 z-60 bg-[#0A0E17] flex flex-col items-center justify-center p-6 safe-top safe-bottom">
+  <div id="pinScreen" style="z-index: 9999;" class="fixed inset-0 bg-[#0A0E17] flex flex-col items-center justify-center p-6 safe-top safe-bottom">
     <div class="w-full max-w-xs text-center space-y-6">
       <div class="relative w-20 h-20 mx-auto rounded-3xl bg-surface-card border border-surface-border flex items-center justify-center shadow-glow-emerald">
         <img src="/icon.svg" class="w-11 h-11" alt="LeadPulse">
@@ -168,6 +168,8 @@
       <div class="space-y-4 pt-2">
         <div class="relative flex justify-center">
           <input type="password" id="pinInput" maxlength="6" inputmode="numeric" placeholder="••••" 
+                 oninput="if(this.value.length >= 4) unlockApp()"
+                 onkeydown="if(event.key === 'Enter') unlockApp()"
                  class="w-48 text-center text-3xl tracking-[0.4em] bg-surface-input border border-surface-border rounded-2xl py-3 px-4 text-brand-400 focus:outline-none focus:border-brand-500 transition shadow-inner font-mono">
         </div>
         <button onclick="unlockApp()" class="btn-press w-full py-3.5 bg-brand-600 hover:bg-brand-500 text-white font-semibold rounded-2xl shadow-glow-emerald shadow-brand-600/20 transition flex items-center justify-center gap-2">
@@ -179,8 +181,8 @@
     </div>
   </div>
 
-  <!-- MAIN APP CONTAINER -->
-  <div id="appContainer" class="flex-1 flex flex-col max-w-md mx-auto w-full relative pb-12">
+  <!-- MAIN APP CONTAINER (Hidden while locked) -->
+  <div id="appContainer" class="hidden flex-1 flex flex-col max-w-md mx-auto w-full relative pb-12">
 
     <!-- TOP APP BAR -->
     <header class="sticky top-0 z-20 bg-[#0A0E17]/90 backdrop-blur-xl border-b border-surface-border px-4 py-3 safe-top">
@@ -602,9 +604,15 @@
       const savedAuth = localStorage.getItem('leadpulse_auth');
       if (savedAuth === 'true') {
         document.getElementById('pinScreen').classList.add('hidden');
+        document.getElementById('appContainer').classList.remove('hidden');
         await initApp();
       } else {
-        document.getElementById('pinInput').focus();
+        document.getElementById('pinScreen').classList.remove('hidden');
+        document.getElementById('appContainer').classList.add('hidden');
+        setTimeout(() => {
+          const inp = document.getElementById('pinInput');
+          if (inp) inp.focus();
+        }, 150);
       }
     });
 
@@ -622,6 +630,7 @@
 
     async function unlockApp() {
       const pin = document.getElementById('pinInput').value.trim();
+      if (!pin) return;
       try {
         const resp = await fetch('/api/auth/verify', {
           method: 'POST',
@@ -632,6 +641,7 @@
         if (data.valid) {
           localStorage.setItem('leadpulse_auth', 'true');
           document.getElementById('pinScreen').classList.add('hidden');
+          document.getElementById('appContainer').classList.remove('hidden');
           await initApp();
           showToast('Welcome to LeadPulse NG', '⚡');
         } else {
@@ -641,7 +651,9 @@
         if (pin === '1234') {
           localStorage.setItem('leadpulse_auth', 'true');
           document.getElementById('pinScreen').classList.add('hidden');
+          document.getElementById('appContainer').classList.remove('hidden');
           await initApp();
+          showToast('Welcome to LeadPulse NG', '⚡');
         } else {
           document.getElementById('pinError').classList.remove('hidden');
         }
