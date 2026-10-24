@@ -1,0 +1,1041 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>LeadPulse NG – Mobile Lead & Pitch Hub</title>
+  
+  <!-- PWA & Mobile Meta -->
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#090d16">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="LeadPulse">
+  <link rel="apple-touch-icon" href="/icon.svg">
+  <link rel="icon" type="image/svg+xml" href="/icon.svg">
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#ecfdf5',
+              500: '#10b981',
+              600: '#059669',
+              700: '#047857',
+            },
+            dark: {
+              900: '#090d16',
+              800: '#0f172a',
+              700: '#1e293b',
+              600: '#334155'
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    body {
+      background-color: #090d16;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      padding-top: env(safe-area-inset-top);
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+    .scrollbar-none::-webkit-scrollbar {
+      display: none;
+    }
+    .scrollbar-none {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+    .drawer {
+      transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+    }
+    .drawer-closed {
+      transform: translateY(100%);
+    }
+    .drawer-open {
+      transform: translateY(0%);
+    }
+  </style>
+</head>
+<body class="text-slate-100 min-h-screen flex flex-col antialiased selection:bg-emerald-500/30">
+
+  <!-- PIN LOCK SCREEN -->
+  <div id="pinScreen" class="fixed inset-0 z-50 bg-[#090d16] flex flex-col items-center justify-center p-6">
+    <div class="w-full max-w-xs text-center space-y-6">
+      <div class="w-20 h-20 mx-auto rounded-3xl bg-slate-900 border border-slate-800 flex items-center justify-center shadow-2xl shadow-emerald-500/10">
+        <img src="/icon.svg" class="w-12 h-12" alt="LeadPulse">
+      </div>
+      <div>
+        <h1 class="text-2xl font-bold tracking-tight text-white">LeadPulse NG</h1>
+        <p class="text-xs text-slate-400 mt-1">Agency Cold Outreach Hub</p>
+      </div>
+
+      <div class="space-y-4">
+        <div class="flex justify-center gap-3 my-4">
+          <input type="password" id="pinInput" maxlength="6" inputmode="numeric" placeholder="Enter PIN" 
+                 class="w-48 text-center text-2xl tracking-[0.4em] bg-slate-900/90 border border-slate-700 rounded-2xl py-3 px-4 text-emerald-400 focus:outline-none focus:border-emerald-500 transition shadow-inner">
+        </div>
+        <button onclick="unlockApp()" class="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-2xl shadow-lg shadow-emerald-600/25 active:scale-[0.98] transition">
+          Unlock Pipeline
+        </button>
+        <p id="pinError" class="text-xs text-rose-400 font-medium hidden">Incorrect PIN. Default is 1234.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN APP WRAPPER -->
+  <div id="appContainer" class="flex-1 flex flex-col max-w-md mx-auto w-full pb-20 relative">
+
+    <!-- TOP HEADER -->
+    <header class="sticky top-0 z-30 bg-[#090d16]/95 backdrop-blur-md border-b border-slate-800/80 px-4 py-3">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+          <img src="/icon.svg" class="w-8 h-8 rounded-xl" alt="Icon">
+          <div>
+            <h1 class="text-base font-bold tracking-tight text-white flex items-center gap-1.5 leading-tight">
+              LeadPulse NG
+              <span class="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            </h1>
+            <p id="totalLeadsCount" class="text-[10px] text-slate-400">Loading leads...</p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-1.5">
+          <button onclick="loadLeads()" class="p-2 text-slate-400 hover:text-white rounded-xl bg-slate-900 border border-slate-800 active:scale-95 transition" title="Refresh">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+          </button>
+          <button onclick="openScrapeModal()" class="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-xl shadow-md shadow-emerald-600/20 active:scale-95 transition">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
+            <span>Audit</span>
+          </button>
+          <button onclick="openSettingsModal()" class="p-2 text-slate-400 hover:text-white rounded-xl bg-slate-900 border border-slate-800 active:scale-95 transition">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- STATUS HORIZONTAL TABS -->
+      <div class="flex items-center gap-2 mt-3 overflow-x-auto scrollbar-none pb-0.5">
+        <button onclick="setStatusFilter('Pending')" id="tab-Pending" class="status-tab shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+          <span>📥 Inbox</span>
+          <span id="badge-Pending" class="bg-emerald-500/20 px-1.5 py-0.2 rounded-full text-[10px]">0</span>
+        </button>
+        <button onclick="setStatusFilter('DM Sent')" id="tab-DMSent" class="status-tab shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-slate-900 text-slate-400 border border-slate-800">
+          <span>💬 Sent</span>
+          <span id="badge-DMSent" class="bg-slate-800 px-1.5 py-0.2 rounded-full text-[10px]">0</span>
+        </button>
+        <button onclick="setStatusFilter('Replied')" id="tab-Replied" class="status-tab shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-slate-900 text-slate-400 border border-slate-800">
+          <span>🙋 Replied</span>
+          <span id="badge-Replied" class="bg-slate-800 px-1.5 py-0.2 rounded-full text-[10px]">0</span>
+        </button>
+        <button onclick="setStatusFilter('Demo Sent')" id="tab-DemoSent" class="status-tab shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-slate-900 text-slate-400 border border-slate-800">
+          <span>🚀 Demo Sent</span>
+          <span id="badge-DemoSent" class="bg-slate-800 px-1.5 py-0.2 rounded-full text-[10px]">0</span>
+        </button>
+        <button onclick="setStatusFilter('Closed')" id="tab-Closed" class="status-tab shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-slate-900 text-slate-400 border border-slate-800">
+          <span>🏆 Closed</span>
+          <span id="badge-Closed" class="bg-slate-800 px-1.5 py-0.2 rounded-full text-[10px]">0</span>
+        </button>
+        <button onclick="setStatusFilter('all')" id="tab-all" class="status-tab shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-slate-900 text-slate-400 border border-slate-800">
+          <span>🌐 All</span>
+          <span id="badge-all" class="bg-slate-800 px-1.5 py-0.2 rounded-full text-[10px]">0</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- SEARCH & FILTER BAR -->
+    <div class="px-4 py-2.5 space-y-2 border-b border-slate-800/50 bg-[#090d16]">
+      <div class="relative">
+        <svg class="w-4 h-4 absolute left-3 top-3 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        <input type="text" id="searchInput" oninput="handleSearchInput()" placeholder="Search business, phone, or area..." 
+               class="w-full bg-slate-900/80 border border-slate-800 rounded-xl pl-9 pr-8 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500/50 transition">
+        <button onclick="clearSearch()" id="clearSearchBtn" class="hidden absolute right-3 top-2.5 text-slate-500 hover:text-white">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <!-- FILTER CHIPS -->
+      <div class="flex items-center gap-2 overflow-x-auto scrollbar-none text-[11px]">
+        <select id="diagnosisFilter" onchange="loadLeads()" class="bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1 text-slate-300 focus:outline-none focus:border-emerald-500">
+          <option value="all">Flaw: All Defects</option>
+          <option value="NO_WEBSITE">🚫 No Website (100 pts)</option>
+          <option value="SOCIAL_OR_WHATSAPP_ONLY">🔗 Linktree / WhatsApp Only (95 pts)</option>
+          <option value="TRULY_DEAD_DOMAIN">💀 Dead Domain 404/DNS (90 pts)</option>
+        </select>
+
+        <select id="sortFilter" onchange="loadLeads()" class="bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1 text-slate-300 focus:outline-none focus:border-emerald-500">
+          <option value="score">Sort: Highest Score</option>
+          <option value="reviews">Sort: Most Reviews</option>
+          <option value="newest">Sort: Newest Added</option>
+          <option value="name">Sort: Business Name</option>
+        </select>
+
+        <select id="nicheFilter" onchange="loadLeads()" class="bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1 text-slate-300 focus:outline-none focus:border-emerald-500">
+          <option value="all">Niche: All</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- LEADS FEED -->
+    <main id="leadsList" class="flex-1 px-4 py-3 space-y-3">
+      <div class="py-12 text-center text-slate-500 text-sm">Loading qualified leads...</div>
+    </main>
+
+  </div>
+
+  <!-- 3-STEP PITCH DRAWER (BOTTOM SHEET) -->
+  <div id="pitchDrawerBackdrop" onclick="closePitchDrawer()" class="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm hidden transition-opacity"></div>
+  <div id="pitchDrawer" class="drawer drawer-closed fixed bottom-0 left-0 right-0 z-50 bg-slate-900 border-t border-slate-800 rounded-t-3xl max-w-md mx-auto max-h-[90vh] flex flex-col shadow-2xl">
+    
+    <!-- Drawer Handle -->
+    <div class="pt-3 pb-2 flex justify-center cursor-pointer" onclick="closePitchDrawer()">
+      <div class="w-12 h-1.5 bg-slate-700 rounded-full"></div>
+    </div>
+
+    <!-- Drawer Header -->
+    <div class="px-5 pb-3 border-b border-slate-800 flex items-start justify-between">
+      <div>
+        <h2 id="drawerBizName" class="text-base font-bold text-white leading-tight">Business Name</h2>
+        <p id="drawerBizMeta" class="text-xs text-slate-400 mt-0.5">Category · Location</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <button onclick="regeneratePitchAI()" id="regenPitchBtn" class="px-2.5 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[11px] text-emerald-400 font-medium flex items-center gap-1 transition">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+          <span>Re-roll AI</span>
+        </button>
+        <button onclick="closePitchDrawer()" class="p-1.5 rounded-full text-slate-400 hover:text-white bg-slate-800">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Proof Badge & Diagnosis Bar -->
+    <div class="px-5 py-2.5 bg-slate-950/70 border-b border-slate-800 flex items-center justify-between text-xs">
+      <div class="flex items-center gap-2">
+        <span id="drawerDiagnosisBadge" class="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-amber-500/20 text-amber-400 border border-amber-500/30">
+          NO_WEBSITE
+        </span>
+        <span id="drawerProofText" class="text-slate-300 font-medium text-[11px]">⭐ 4.8 (120 reviews)</span>
+      </div>
+      <span id="drawerScoreBadge" class="text-[11px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
+        100 pts
+      </span>
+    </div>
+
+    <!-- 3 SEQUENCE TABS -->
+    <div class="px-5 pt-3">
+      <div class="grid grid-cols-3 gap-1 bg-slate-950 p-1 rounded-2xl border border-slate-800 text-xs text-center font-semibold">
+        <button onclick="switchPitchTab(1)" id="tabPitch-1" class="py-2 rounded-xl transition bg-emerald-600/25 text-emerald-400 border border-emerald-500/40">
+          1. First Hook
+        </button>
+        <button onclick="switchPitchTab(2)" id="tabPitch-2" class="py-2 rounded-xl transition text-slate-400 hover:text-slate-200">
+          2. Send Demo <span id="tabLockBadge-2" class="text-[10px]">🔒</span>
+        </button>
+        <button onclick="switchPitchTab(3)" id="tabPitch-3" class="py-2 rounded-xl transition text-slate-400 hover:text-slate-200 relative">
+          3. Day 3
+          <span id="tabDueBadge-3" class="hidden absolute top-1 right-1 w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Drawer Body -->
+    <div class="px-5 py-3 overflow-y-auto space-y-3 flex-1">
+      
+      <!-- TAB 1: FIRST HOOK (At most 2 sentences, NO links, ends with question) -->
+      <div id="pitchPanel-1" class="space-y-3">
+        <div class="flex items-center justify-between text-[11px] text-slate-400">
+          <span>Max 2 sentences · Personalized proof · NO links</span>
+          <span class="text-emerald-400 font-medium">Step 1 of 3</span>
+        </div>
+        <textarea id="drawerMsg1Text" rows="4" 
+                  class="w-full bg-slate-950 border border-slate-700/80 rounded-2xl p-3 text-xs text-slate-200 focus:outline-none focus:border-emerald-500 leading-relaxed"></textarea>
+        
+        <!-- Status quick transition -->
+        <div class="flex items-center justify-between text-xs text-slate-400 pt-1">
+          <span>Status after send:</span>
+          <span class="text-emerald-400 font-medium">Sets status to "DM Sent" & schedules Day 3</span>
+        </div>
+      </div>
+
+      <!-- TAB 2: SEND DEMO (Gated until prospect replies) -->
+      <div id="pitchPanel-2" class="space-y-3 hidden">
+        
+        <!-- Locked Banner if not replied -->
+        <div id="demoLockedBanner" class="bg-amber-950/30 border border-amber-500/30 rounded-2xl p-4 text-center space-y-2.5">
+          <div class="text-2xl">🔒</div>
+          <p class="text-xs font-bold text-amber-300">Demo link is held back until prospect replies</p>
+          <p class="text-[11px] text-slate-400 leading-relaxed">
+            Do not send the sample link to a cold prospect who hasn't answered yet. When they reply "yes" to Message 1, tap below to unlock.
+          </p>
+          <button onclick="markLeadReplied()" class="px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-lg transition active:scale-95">
+            Mark as Replied & Unlock Demo
+          </button>
+        </div>
+
+        <!-- Unlocked Demo Content -->
+        <div id="demoUnlockedContent" class="space-y-3 hidden">
+          <div class="bg-emerald-950/20 border border-emerald-500/30 rounded-2xl p-3 flex items-center justify-between">
+            <div>
+              <p class="text-xs font-bold text-emerald-300">Sample Demo URL</p>
+              <a id="drawerDemoUrl" href="#" target="_blank" class="text-[11px] text-emerald-400 underline truncate block max-w-[240px]">None</a>
+            </div>
+            <span class="text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 font-medium">Ready</span>
+          </div>
+
+          <div class="space-y-1">
+            <label class="text-[11px] text-slate-400 flex items-center justify-between">
+              <span>Demo link + features + branding offer</span>
+              <span class="text-emerald-400 font-medium">Step 2 of 3</span>
+            </label>
+            <textarea id="drawerMsg2Text" rows="5" 
+                      class="w-full bg-slate-950 border border-slate-700/80 rounded-2xl p-3 text-xs text-slate-200 focus:outline-none focus:border-emerald-500 leading-relaxed"></textarea>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- TAB 3: DAY 3 FOLLOW-UP -->
+      <div id="pitchPanel-3" class="space-y-3 hidden">
+        
+        <!-- Follow-up Due Banner -->
+        <div id="followupDueBanner" class="bg-slate-950 border border-slate-800 rounded-2xl p-3 flex items-center justify-between text-xs">
+          <div class="flex items-center gap-2">
+            <span id="followupDueIcon">🕒</span>
+            <div>
+              <p id="followupDueTitle" class="font-bold text-slate-200">Scheduled Follow-up</p>
+              <p id="followupDueSub" class="text-[10px] text-slate-400">Due 3 days after Message 1</p>
+            </div>
+          </div>
+          <span id="followupDueBadge" class="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-400">Scheduled</span>
+        </div>
+
+        <div class="space-y-1">
+          <label class="text-[11px] text-slate-400 flex items-center justify-between">
+            <span>Short, polite offer for short video walkthrough</span>
+            <span class="text-emerald-400 font-medium">Step 3 of 3</span>
+          </label>
+          <textarea id="drawerFollowupText" rows="4" 
+                    class="w-full bg-slate-950 border border-slate-700/80 rounded-2xl p-3 text-xs text-slate-200 focus:outline-none focus:border-emerald-500 leading-relaxed"></textarea>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- Sticky Bottom WhatsApp CTA Button -->
+    <div class="p-4 border-t border-slate-800 bg-slate-900/95 backdrop-blur-md">
+      <button id="drawerMainActionBtn" onclick="sendActiveTabWhatsApp()" class="w-full py-4 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] text-white font-bold rounded-2xl shadow-xl shadow-emerald-600/30 flex items-center justify-center gap-2.5 transition">
+        <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.711 2.598 2.664-.698c.969.587 1.961.954 3.018.954 3.181 0 5.767-2.587 5.767-5.766.001-3.181-2.585-5.767-5.767-5.767zm7.579 5.767c0 4.183-3.407 7.589-7.589 7.589-1.326 0-2.571-.347-3.665-.959l-5.111 1.34 1.364-4.981c-.702-1.157-1.109-2.518-1.109-3.989 0-4.183 3.407-7.589 7.589-7.589 4.182 0 7.589 3.406 7.589 7.589z"/></svg>
+        <span id="drawerActionBtnLabel" class="text-sm">Send Message 1 on WhatsApp</span>
+      </button>
+    </div>
+
+  </div>
+
+  <!-- LIVE SCRAPE & AUDIT MODAL -->
+  <div id="scrapeModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex flex-col items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-sm max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+      
+      <div class="px-5 py-4 border-b border-slate-800 flex items-center justify-between">
+        <div>
+          <h3 class="text-base font-bold text-white">Discover & Audit Leads</h3>
+          <p class="text-[11px] text-slate-400">Google Maps + Instagram + Golden Filter</p>
+        </div>
+        <button onclick="closeScrapeModal()" class="p-1 rounded-full text-slate-400 hover:text-white">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <div class="p-5 space-y-4 overflow-y-auto flex-1">
+        
+        <div>
+          <label class="text-xs font-semibold text-slate-300 mb-2 block">1-Tap High-Ticket Presets</label>
+          <div class="grid grid-cols-2 gap-2 text-xs">
+            <button onclick="runPresetScrape('Shortlet Apartments', 'Lekki Phase 1, Lagos')" class="p-2.5 bg-slate-800/80 hover:bg-slate-700/80 rounded-xl text-left border border-slate-700/50 flex items-center gap-2">
+              <span>🏨</span>
+              <span class="truncate">Lekki Shortlets</span>
+            </button>
+            <button onclick="runPresetScrape('Solar Installation', 'Lekki & Ajah, Lagos')" class="p-2.5 bg-slate-800/80 hover:bg-slate-700/80 rounded-xl text-left border border-slate-700/50 flex items-center gap-2">
+              <span>⚡</span>
+              <span class="truncate">Lagos Solar</span>
+            </button>
+            <button onclick="runPresetScrape('Aesthetics & Med-Spa', 'Victoria Island, Lagos')" class="p-2.5 bg-slate-800/80 hover:bg-slate-700/80 rounded-xl text-left border border-slate-700/50 flex items-center gap-2">
+              <span>🧖</span>
+              <span class="truncate">VI Med-Spas</span>
+            </button>
+            <button onclick="runPresetScrape('Dental Clinic', 'Ikeja, Lagos')" class="p-2.5 bg-slate-800/80 hover:bg-slate-700/80 rounded-xl text-left border border-slate-700/50 flex items-center gap-2">
+              <span>🦷</span>
+              <span class="truncate">Ikeja Dental</span>
+            </button>
+            <button onclick="runPresetScrape('Fine Dining Lounge', 'Victoria Island, Lagos')" class="p-2.5 bg-slate-800/80 hover:bg-slate-700/80 rounded-xl text-left border border-slate-700/50 flex items-center gap-2">
+              <span>🍽️</span>
+              <span class="truncate">VI Fine Dining</span>
+            </button>
+            <button onclick="runPresetScrape(null, null, true)" class="p-2.5 bg-emerald-950/40 hover:bg-emerald-900/40 rounded-xl text-left border border-emerald-500/30 text-emerald-300 font-semibold flex items-center gap-2">
+              <span>🚀</span>
+              <span class="truncate">Full 11-Cat Sweep</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="border-t border-slate-800 pt-3 space-y-3">
+          <label class="text-xs font-semibold text-slate-300 block">Custom Search</label>
+          <input type="text" id="customNiche" placeholder="Niche (e.g. Car Dealer, Gym, Spa)" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+          <input type="text" id="customLocation" placeholder="Location (e.g. Maitama, Abuja)" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+          <div class="flex items-center justify-between text-xs text-slate-400">
+            <span>Result Limit</span>
+            <input type="number" id="customLimit" value="15" min="5" max="30" class="w-16 bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-center text-white">
+          </div>
+          <button onclick="runCustomScrape()" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs rounded-xl shadow-md transition">
+            Run Custom Audit
+          </button>
+        </div>
+
+        <div id="scrapeStreamBox" class="hidden border border-slate-800 bg-slate-950 rounded-2xl p-3 font-mono text-[11px] space-y-1.5 max-h-48 overflow-y-auto scrollbar-none text-slate-300">
+          <div class="flex items-center gap-2 text-emerald-400">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+            <span>Audit engine running...</span>
+          </div>
+          <div id="scrapeLogs" class="space-y-1"></div>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+
+  <!-- SETTINGS MODAL -->
+  <div id="settingsModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex flex-col items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-sm max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+      
+      <div class="px-5 py-4 border-b border-slate-800 flex items-center justify-between">
+        <h3 class="text-base font-bold text-white">Agency Settings</h3>
+        <button onclick="closeSettingsModal()" class="p-1 rounded-full text-slate-400 hover:text-white">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <div class="p-5 space-y-4 overflow-y-auto flex-1">
+        
+        <div>
+          <label class="text-xs font-semibold text-slate-300 block mb-1">Live Niche Demo Website URLs</label>
+          <p class="text-[10px] text-slate-500 mb-2">URLs of sample websites you host to show prospects.</p>
+          <div id="templateInputs" class="space-y-2 text-xs"></div>
+          <button onclick="addTemplateRow()" class="mt-2 text-xs text-emerald-400 hover:text-emerald-300 flex items-center gap-1">
+            <span>+ Add Another Niche Demo URL</span>
+          </button>
+        </div>
+
+        <div class="border-t border-slate-800 pt-3 space-y-1.5">
+          <label class="text-xs font-medium text-slate-300">Access PIN</label>
+          <input type="text" id="settingsPinInput" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white" value="1234">
+        </div>
+
+        <div class="border-t border-slate-800 pt-3">
+          <a href="/api/export/csv" download="leads.csv" class="w-full py-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-semibold text-xs rounded-xl flex items-center justify-center gap-2 transition">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+            <span>Download leads.csv</span>
+          </a>
+        </div>
+
+      </div>
+
+      <div class="p-4 border-t border-slate-800 bg-slate-900">
+        <button onclick="saveAppSettings()" class="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs rounded-xl shadow-lg transition">
+          Save Settings
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- JAVASCRIPT LOGIC -->
+  <script>
+    let currentLeads = [];
+    let currentStatusFilter = 'Pending';
+    let activeLead = null;
+    let activePitchTab = 1;
+    let appSettings = {};
+
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW registration failed:', err));
+      });
+    }
+
+    window.addEventListener('DOMContentLoaded', async () => {
+      const savedAuth = localStorage.getItem('leadpulse_auth');
+      if (savedAuth === 'true') {
+        document.getElementById('pinScreen').classList.add('hidden');
+        await initApp();
+      } else {
+        document.getElementById('pinInput').focus();
+      }
+    });
+
+    async function unlockApp() {
+      const pin = document.getElementById('pinInput').value.trim();
+      try {
+        const resp = await fetch('/api/auth/verify', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({pin})
+        });
+        const data = await resp.json();
+        if (data.valid) {
+          localStorage.setItem('leadpulse_auth', 'true');
+          document.getElementById('pinScreen').classList.add('hidden');
+          await initApp();
+        } else {
+          document.getElementById('pinError').classList.remove('hidden');
+        }
+      } catch (e) {
+        if (pin === '1234') {
+          localStorage.setItem('leadpulse_auth', 'true');
+          document.getElementById('pinScreen').classList.add('hidden');
+          await initApp();
+        } else {
+          document.getElementById('pinError').classList.remove('hidden');
+        }
+      }
+    }
+
+    async function initApp() {
+      await fetchSettings();
+      await loadLeads();
+    }
+
+    async function fetchSettings() {
+      try {
+        const res = await fetch('/api/settings');
+        appSettings = await res.json();
+      } catch (e) {
+        console.error('Failed to load settings:', e);
+      }
+    }
+
+    function setStatusFilter(status) {
+      currentStatusFilter = status;
+      document.querySelectorAll('.status-tab').forEach(tab => {
+        tab.classList.remove('bg-emerald-500/15', 'text-emerald-400', 'border-emerald-500/30');
+        tab.classList.add('bg-slate-900', 'text-slate-400', 'border-slate-800');
+      });
+      const key = status.replace(/\s+/g, '');
+      const activeTab = document.getElementById('tab-' + key);
+      if (activeTab) {
+        activeTab.classList.remove('bg-slate-900', 'text-slate-400', 'border-slate-800');
+        activeTab.classList.add('bg-emerald-500/15', 'text-emerald-400', 'border-emerald-500/30');
+      }
+      loadLeads();
+    }
+
+    async function loadLeads() {
+      const search = document.getElementById('searchInput').value.trim();
+      const diagnosis = document.getElementById('diagnosisFilter').value;
+      const sortBy = document.getElementById('sortFilter').value;
+      const niche = document.getElementById('nicheFilter').value;
+
+      const params = new URLSearchParams({
+        status: currentStatusFilter,
+        diagnosis: diagnosis,
+        niche: niche,
+        sort_by: sortBy,
+        search: search
+      });
+
+      try {
+        const res = await fetch(`/api/leads?${params.toString()}`);
+        const data = await res.json();
+        currentLeads = data.leads || [];
+
+        const cs = data.counts_by_status || {};
+        document.getElementById('badge-Pending').innerText = cs['Pending'] || 0;
+        document.getElementById('badge-DMSent').innerText = cs['DM Sent'] || 0;
+        document.getElementById('badge-Replied').innerText = cs['Replied'] || 0;
+        document.getElementById('badge-DemoSent').innerText = cs['Demo Sent'] || 0;
+        document.getElementById('badge-Closed').innerText = cs['Closed'] || 0;
+        document.getElementById('badge-all').innerText = cs['all'] || 0;
+
+        document.getElementById('totalLeadsCount').innerText = `${data.total} qualified leads · ${cs['DM Sent'] || 0} contacted`;
+
+        const nicheSelect = document.getElementById('nicheFilter');
+        if (nicheSelect.options.length <= 1 && data.niches) {
+          data.niches.forEach(n => {
+            const opt = document.createElement('option');
+            opt.value = n;
+            opt.innerText = n;
+            nicheSelect.appendChild(opt);
+          });
+        }
+
+        renderLeads(currentLeads);
+      } catch (e) {
+        document.getElementById('leadsList').innerHTML = `
+          <div class="py-12 text-center text-slate-500 text-sm">Failed to connect to server.</div>
+        `;
+      }
+    }
+
+    function renderLeads(leads) {
+      const container = document.getElementById('leadsList');
+      if (!leads.length) {
+        container.innerHTML = `
+          <div class="py-16 text-center space-y-3">
+            <div class="text-3xl">🎯</div>
+            <p class="text-sm font-semibold text-slate-300">No leads found in this view</p>
+            <p class="text-xs text-slate-500">Tap "Audit" in the top bar to discover hot leads in Lekki, VI, or Abuja.</p>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = leads.map(l => {
+        let flawBadge = '';
+        if (l.funnel_diagnosis === 'NO_WEBSITE') {
+          flawBadge = '<span class="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/30">No Website</span>';
+        } else if (l.funnel_diagnosis === 'SOCIAL_OR_WHATSAPP_ONLY') {
+          flawBadge = '<span class="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-sky-500/15 text-sky-400 border border-sky-500/30">Social Only</span>';
+        } else {
+          flawBadge = '<span class="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-rose-500/15 text-rose-400 border border-rose-500/30">Dead Link (404)</span>';
+        }
+
+        let statusColor = 'text-slate-400 bg-slate-800 border-slate-700';
+        if (l.outreach_status === 'DM Sent') statusColor = 'text-blue-400 bg-blue-500/10 border-blue-500/30';
+        if (l.outreach_status === 'Replied') statusColor = 'text-amber-400 bg-amber-500/10 border-amber-500/30 font-bold';
+        if (l.outreach_status === 'Demo Sent') statusColor = 'text-purple-400 bg-purple-500/10 border-purple-500/30';
+        if (l.outreach_status === 'Closed') statusColor = 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30 font-bold';
+
+        // Follow-up due alert badge
+        let followupBadge = '';
+        if (l.is_followup_due) {
+          followupBadge = '<span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-500/25 text-amber-300 border border-amber-400 animate-pulse">🔔 Follow-up Due</span>';
+        }
+
+        const reviews = l.reviews_count ? `⭐ ${l.rating || '4.5'} (${l.reviews_count})` : 'Google Listing';
+        const displayPitch = l.message_1 || l.custom_pitch || l.ai_pitch_angle || 'Looking through your online presence and noticed an opportunity...';
+
+        return `
+          <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 space-y-3 shadow-lg active:border-slate-700 transition">
+            
+            <div class="flex items-start justify-between gap-2">
+              <div>
+                <h3 class="text-sm font-bold text-white tracking-tight leading-snug">${escapeHtml(l.business_name)}</h3>
+                <p class="text-[11px] text-slate-400 mt-0.5">${escapeHtml(l.niche)} · <span class="text-slate-500">${escapeHtml(l.location || 'Lagos')}</span></p>
+              </div>
+              <span class="text-xs font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-lg border border-emerald-500/20 shrink-0">
+                ${l.lead_score_num} pts
+              </span>
+            </div>
+
+            <div class="flex items-center gap-2 flex-wrap">
+              ${flawBadge}
+              ${followupBadge}
+              <span class="text-[10px] font-medium text-slate-400 bg-slate-800 px-2 py-0.5 rounded-md border border-slate-700/60">
+                ${reviews}
+              </span>
+              <span class="text-[10px] font-medium ${statusColor} px-2 py-0.5 rounded-md border">
+                ${l.outreach_status}
+              </span>
+            </div>
+
+            <div class="bg-slate-950/70 border border-slate-800/80 rounded-xl p-2.5 text-[11px] text-slate-300 italic leading-relaxed">
+              "${escapeHtml(displayPitch)}"
+            </div>
+
+            <div class="pt-1 flex items-center gap-2">
+              <button onclick="openPitchDrawer('${l.lead_id}')" class="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-md shadow-emerald-600/20 active:scale-[0.98] transition flex items-center justify-center gap-2">
+                <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.711 2.598 2.664-.698c.969.587 1.961.954 3.018.954 3.181 0 5.767-2.587 5.767-5.766.001-3.181-2.585-5.767-5.767-5.767zm7.579 5.767c0 4.183-3.407 7.589-7.589 7.589-1.326 0-2.571-.347-3.665-.959l-5.111 1.34 1.364-4.981c-.702-1.157-1.109-2.518-1.109-3.989 0-4.183 3.407-7.589 7.589-7.589 4.182 0 7.589 3.406 7.589 7.589z"/></svg>
+                <span>Pitch Sequence</span>
+              </button>
+
+              <select onchange="updateLeadStatusDirect('${l.lead_id}', this.value)" class="bg-slate-800 border border-slate-700 text-slate-300 text-xs rounded-xl px-2 py-2.5 focus:outline-none">
+                <option value="Pending" ${l.outreach_status === 'Pending' ? 'selected' : ''}>Pending</option>
+                <option value="DM Sent" ${l.outreach_status === 'DM Sent' ? 'selected' : ''}>DM Sent</option>
+                <option value="Replied" ${l.outreach_status === 'Replied' ? 'selected' : ''}>Replied</option>
+                <option value="Demo Sent" ${l.outreach_status === 'Demo Sent' ? 'selected' : ''}>Demo Sent</option>
+                <option value="Closed" ${l.outreach_status === 'Closed' ? 'selected' : ''}>Closed</option>
+              </select>
+            </div>
+
+          </div>
+        `;
+      }).join('');
+    }
+
+    // 3-STEP PITCH DRAWER FUNCTIONS
+    function openPitchDrawer(leadId) {
+      activeLead = currentLeads.find(l => l.lead_id === leadId);
+      if (!activeLead) return;
+
+      document.getElementById('drawerBizName').innerText = activeLead.business_name;
+      document.getElementById('drawerBizMeta').innerText = `${activeLead.niche} · ${activeLead.location || 'Nigeria'}`;
+      document.getElementById('drawerProofText').innerText = activeLead.reviews_count ? `⭐ ${activeLead.rating || '4.5'} (${activeLead.reviews_count} reviews)` : 'Active Local Business';
+      document.getElementById('drawerScoreBadge').innerText = `${activeLead.lead_score_num} pts`;
+      document.getElementById('drawerDiagnosisBadge').innerText = activeLead.funnel_diagnosis;
+
+      // Resolve demo URL
+      const templates = appSettings.portfolio_templates || {};
+      let demoUrl = activeLead.demo_url;
+      if (!demoUrl) {
+        for (const [k, u] of Object.entries(templates)) {
+          if (k.toLowerCase().includes(activeLead.niche.toLowerCase()) || activeLead.niche.toLowerCase().includes(k.toLowerCase())) {
+            demoUrl = u;
+            break;
+          }
+        }
+      }
+      activeLead.resolved_demo_url = demoUrl;
+      const demoLinkEl = document.getElementById('drawerDemoUrl');
+      if (demoUrl) {
+        demoLinkEl.href = demoUrl;
+        demoLinkEl.innerText = demoUrl;
+      } else {
+        demoLinkEl.href = '#';
+        demoLinkEl.innerText = 'No portfolio link configured';
+      }
+
+      // Populate 3 messages
+      document.getElementById('drawerMsg1Text').value = activeLead.message_1 || activeLead.custom_pitch || activeLead.ai_pitch_angle || '';
+      document.getElementById('drawerMsg2Text').value = activeLead.message_2 || '';
+      document.getElementById('drawerFollowupText').value = activeLead.followup || '';
+
+      // Set initial tab based on lead status
+      if (activeLead.outreach_status === 'Replied') {
+        switchPitchTab(2);
+      } else if (activeLead.is_followup_due || activeLead.outreach_status === 'DM Sent') {
+        switchPitchTab(activeLead.is_followup_due ? 3 : 1);
+      } else {
+        switchPitchTab(1);
+      }
+
+      // Update follow-up due indicator on tab 3
+      if (activeLead.is_followup_due) {
+        document.getElementById('tabDueBadge-3').classList.remove('hidden');
+        document.getElementById('followupDueIcon').innerText = '🔔';
+        document.getElementById('followupDueTitle').innerText = 'Follow-up is DUE Today';
+        document.getElementById('followupDueSub').innerText = '3+ days have elapsed since Message 1 was sent.';
+        document.getElementById('followupDueBadge').innerText = 'DUE NOW';
+        document.getElementById('followupDueBadge').className = 'text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/25 text-amber-300 border border-amber-400';
+      } else {
+        document.getElementById('tabDueBadge-3').classList.add('hidden');
+        document.getElementById('followupDueIcon').innerText = '🕒';
+        document.getElementById('followupDueTitle').innerText = 'Scheduled Follow-up';
+        document.getElementById('followupDueSub').innerText = activeLead.dm_sent_at ? 'Scheduled for Day 3 after Message 1' : 'Will activate after sending Message 1';
+        document.getElementById('followupDueBadge').innerText = 'Scheduled';
+        document.getElementById('followupDueBadge').className = 'text-[10px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-400';
+      }
+
+      document.getElementById('pitchDrawerBackdrop').classList.remove('hidden');
+      document.getElementById('pitchDrawer').classList.remove('drawer-closed');
+      document.getElementById('pitchDrawer').classList.add('drawer-open');
+    }
+
+    function closePitchDrawer() {
+      document.getElementById('pitchDrawer').classList.remove('drawer-open');
+      document.getElementById('pitchDrawer').classList.add('drawer-closed');
+      document.getElementById('pitchDrawerBackdrop').classList.add('hidden');
+    }
+
+    function switchPitchTab(tabNum) {
+      activePitchTab = tabNum;
+      
+      // Update Tab Buttons
+      [1, 2, 3].forEach(n => {
+        const btn = document.getElementById('tabPitch-' + n);
+        const panel = document.getElementById('pitchPanel-' + n);
+        if (n === tabNum) {
+          btn.className = 'py-2 rounded-xl transition bg-emerald-600/25 text-emerald-400 border border-emerald-500/40 font-bold';
+          panel.classList.remove('hidden');
+        } else {
+          btn.className = 'py-2 rounded-xl transition text-slate-400 hover:text-slate-200 font-medium';
+          panel.classList.add('hidden');
+        }
+      });
+
+      // Update CTA Action Button label according to active tab
+      const ctaBtn = document.getElementById('drawerMainActionBtn');
+      const ctaLabel = document.getElementById('drawerActionBtnLabel');
+      
+      if (tabNum === 1) {
+        ctaLabel.innerText = 'Send Message 1 on WhatsApp (Schedules Day 3)';
+        ctaBtn.disabled = false;
+        ctaBtn.className = 'w-full py-4 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] text-white font-bold rounded-2xl shadow-xl shadow-emerald-600/30 flex items-center justify-center gap-2.5 transition';
+      } else if (tabNum === 2) {
+        // Check lock status
+        const isUnlocked = ['Replied', 'Demo Sent', 'Follow-up Sent', 'Closed'].includes(activeLead.outreach_status);
+        if (isUnlocked) {
+          document.getElementById('demoLockedBanner').classList.add('hidden');
+          document.getElementById('demoUnlockedContent').classList.remove('hidden');
+          document.getElementById('tabLockBadge-2').innerText = '✅';
+          ctaLabel.innerText = 'Send Demo Link on WhatsApp';
+          ctaBtn.disabled = false;
+          ctaBtn.className = 'w-full py-4 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] text-white font-bold rounded-2xl shadow-xl shadow-emerald-600/30 flex items-center justify-center gap-2.5 transition';
+        } else {
+          document.getElementById('demoLockedBanner').classList.remove('hidden');
+          document.getElementById('demoUnlockedContent').classList.add('hidden');
+          document.getElementById('tabLockBadge-2').innerText = '🔒';
+          ctaLabel.innerText = 'Locked: Mark Lead as Replied First';
+          ctaBtn.disabled = true;
+          ctaBtn.className = 'w-full py-4 bg-slate-800 text-slate-500 font-bold rounded-2xl flex items-center justify-center gap-2.5 cursor-not-allowed';
+        }
+      } else if (tabNum === 3) {
+        ctaLabel.innerText = 'Send Day 3 Follow-up on WhatsApp';
+        ctaBtn.disabled = false;
+        ctaBtn.className = 'w-full py-4 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] text-white font-bold rounded-2xl shadow-xl shadow-emerald-600/30 flex items-center justify-center gap-2.5 transition';
+      }
+    }
+
+    async function markLeadReplied() {
+      if (!activeLead) return;
+      await fetch(`/api/leads/${activeLead.lead_id}/status`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({status: 'Replied'})
+      });
+      activeLead.outreach_status = 'Replied';
+      switchPitchTab(2);
+      loadLeads();
+    }
+
+    async function regeneratePitchAI() {
+      if (!activeLead) return;
+      const btn = document.getElementById('regenPitchBtn');
+      btn.innerHTML = `<span class="animate-spin">🔄</span> Thinking...`;
+      try {
+        const res = await fetch(`/api/leads/${activeLead.lead_id}/regenerate-pitch`, {method: 'POST'});
+        const data = await res.json();
+        if (data.sequence) {
+          document.getElementById('drawerMsg1Text').value = data.sequence.message_1;
+          document.getElementById('drawerMsg2Text').value = data.sequence.message_2;
+          document.getElementById('drawerFollowupText').value = data.sequence.followup;
+          activeLead.message_1 = data.sequence.message_1;
+          activeLead.message_2 = data.sequence.message_2;
+          activeLead.followup = data.sequence.followup;
+        }
+      } catch (e) {
+        alert('Could not reach Gemini API.');
+      }
+      btn.innerHTML = `<span>Re-roll AI</span>`;
+    }
+
+    async function sendActiveTabWhatsApp() {
+      if (!activeLead) return;
+      
+      const m1 = document.getElementById('drawerMsg1Text').value.trim();
+      const m2 = document.getElementById('drawerMsg2Text').value.trim();
+      const m3 = document.getElementById('drawerFollowupText').value.trim();
+
+      // Save messages state
+      await fetch(`/api/leads/${activeLead.lead_id}/messages`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({message_1: m1, message_2: m2, followup: m3})
+      });
+
+      let textToSend = m1;
+      let nextStatus = 'DM Sent';
+
+      if (activePitchTab === 1) {
+        textToSend = m1;
+        nextStatus = 'DM Sent';
+      } else if (activePitchTab === 2) {
+        textToSend = m2;
+        nextStatus = 'Demo Sent';
+      } else if (activePitchTab === 3) {
+        textToSend = m3;
+        nextStatus = 'Follow-up Sent';
+      }
+
+      // Update status
+      await fetch(`/api/leads/${activeLead.lead_id}/status`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({status: nextStatus})
+      });
+
+      activeLead.outreach_status = nextStatus;
+      loadLeads();
+      closePitchDrawer();
+
+      // Launch WhatsApp
+      const cleanPhone = (activeLead.whatsapp_number || '').replace(/\D/g, '');
+      const encodedMsg = encodeURIComponent(textToSend);
+      window.open(`https://wa.me/${cleanPhone}?text=${encodedMsg}`, '_blank');
+    }
+
+    async function updateLeadStatusDirect(leadId, status) {
+      await fetch(`/api/leads/${leadId}/status`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({status})
+      });
+      loadLeads();
+    }
+
+    function handleSearchInput() {
+      const q = document.getElementById('searchInput').value;
+      const btn = document.getElementById('clearSearchBtn');
+      if (q) btn.classList.remove('hidden');
+      else btn.classList.add('hidden');
+      loadLeads();
+    }
+
+    function clearSearch() {
+      document.getElementById('searchInput').value = '';
+      document.getElementById('clearSearchBtn').classList.add('hidden');
+      loadLeads();
+    }
+
+    // Scrape Modal & SSE Streaming
+    function openScrapeModal() {
+      document.getElementById('scrapeModal').classList.remove('hidden');
+      document.getElementById('scrapeStreamBox').classList.add('hidden');
+      document.getElementById('scrapeLogs').innerHTML = '';
+    }
+
+    function closeScrapeModal() {
+      document.getElementById('scrapeModal').classList.add('hidden');
+    }
+
+    function runPresetScrape(niche, location, fullSweep = false) {
+      startScrapeStream({niche, location, limit: 15, full_sweep: fullSweep});
+    }
+
+    function runCustomScrape() {
+      const niche = document.getElementById('customNiche').value.trim();
+      const location = document.getElementById('customLocation').value.trim();
+      const limit = parseInt(document.getElementById('customLimit').value) || 15;
+      if (!niche) {
+        alert('Please enter a target niche.');
+        return;
+      }
+      startScrapeStream({niche, location, limit, full_sweep: false});
+    }
+
+    function startScrapeStream(params) {
+      const streamBox = document.getElementById('scrapeStreamBox');
+      const logs = document.getElementById('scrapeLogs');
+      streamBox.classList.remove('hidden');
+      logs.innerHTML = '<div class="text-slate-400">Initiating live audit connection...</div>';
+
+      const q = new URLSearchParams(params).toString();
+      const evtSource = new EventSource(`/api/scrape/stream?${q}`);
+
+      evtSource.onmessage = function(event) {
+        try {
+          const data = JSON.parse(event.data);
+          const line = document.createElement('div');
+          if (data.type === 'progress') {
+            line.className = 'text-slate-300';
+            line.innerText = `→ ${data.message}`;
+          } else if (data.type === 'step') {
+            line.className = 'text-emerald-400 font-semibold';
+            line.innerText = `⚡ ${data.message}`;
+          } else if (data.type === 'complete') {
+            line.className = 'text-emerald-300 font-bold bg-emerald-950/40 p-1.5 rounded';
+            line.innerText = `✅ ${data.message}`;
+            evtSource.close();
+            loadLeads();
+          } else if (data.type === 'error') {
+            line.className = 'text-rose-400 font-semibold';
+            line.innerText = `⚠️ ${data.message}`;
+            evtSource.close();
+          }
+          logs.appendChild(line);
+          streamBox.scrollTop = streamBox.scrollHeight;
+        } catch (e) {}
+      };
+
+      evtSource.onerror = function() {
+        evtSource.close();
+      };
+    }
+
+    // Settings Modal
+    function openSettingsModal() {
+      document.getElementById('settingsModal').classList.remove('hidden');
+      renderTemplateInputs();
+      document.getElementById('settingsPinInput').value = appSettings.access_pin || '1234';
+    }
+
+    function closeSettingsModal() {
+      document.getElementById('settingsModal').classList.add('hidden');
+    }
+
+    function renderTemplateInputs() {
+      const container = document.getElementById('templateInputs');
+      const templates = appSettings.portfolio_templates || {};
+      container.innerHTML = Object.entries(templates).map(([niche, url]) => `
+        <div class="space-y-1 bg-slate-950/60 p-2.5 rounded-xl border border-slate-800">
+          <input type="text" value="${escapeHtml(niche)}" placeholder="Niche name" class="template-niche-input w-full bg-slate-900 border border-slate-700/80 rounded-lg px-2.5 py-1 text-xs text-slate-200">
+          <input type="url" value="${escapeHtml(url)}" placeholder="https://sample-site.vercel.app" class="template-url-input w-full bg-slate-900 border border-slate-700/80 rounded-lg px-2.5 py-1 text-xs text-emerald-400">
+        </div>
+      `).join('');
+    }
+
+    function addTemplateRow() {
+      const container = document.getElementById('templateInputs');
+      const div = document.createElement('div');
+      div.className = 'space-y-1 bg-slate-950/60 p-2.5 rounded-xl border border-slate-800';
+      div.innerHTML = `
+        <input type="text" placeholder="Niche name (e.g. Gyms)" class="template-niche-input w-full bg-slate-900 border border-slate-700/80 rounded-lg px-2.5 py-1 text-xs text-slate-200">
+        <input type="url" placeholder="https://demo-portfolio-url.vercel.app" class="template-url-input w-full bg-slate-900 border border-slate-700/80 rounded-lg px-2.5 py-1 text-xs text-emerald-400">
+      `;
+      container.appendChild(div);
+    }
+
+    async function saveAppSettings() {
+      const nicheInputs = document.querySelectorAll('.template-niche-input');
+      const urlInputs = document.querySelectorAll('.template-url-input');
+      const newTemplates = {};
+
+      for (let i = 0; i < nicheInputs.length; i++) {
+        const n = nicheInputs[i].value.trim();
+        const u = urlInputs[i].value.trim();
+        if (n && u) newTemplates[n] = u;
+      }
+
+      const newPin = document.getElementById('settingsPinInput').value.trim();
+      const payload = {
+        portfolio_templates: newTemplates,
+        access_pin: newPin || '1234'
+      };
+
+      try {
+        const res = await fetch('/api/settings', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        appSettings = data.settings;
+        alert('Settings saved!');
+        closeSettingsModal();
+      } catch (e) {
+        alert('Failed to save settings.');
+      }
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+  </script>
+
+</body>
+</html>

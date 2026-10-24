@@ -1,0 +1,201 @@
+#!/usr/bin/env python3
+"""
+Lead finder: Google Places -> website audit -> scored leads in SQLite -> CSV.
+
+Setup:
+  pip install requests
+  export GOOGLE_API_KEY=...   # enable "Places API (New)" + "PageSpeed Insights API"
+
+Usage:
+  python leads.py collect                              # all niches x all areas
+  python leads.py collect "dental clinic" "Ikeja"      # filter by niche / area (substring match)
+  python leads.py export                               # writes leads.csv (score >= MIN_SCORE)
+  python leads.py mark "Business Name" contacted       # update status (new/contacted/replied/won/dead)
+"""
+import csv
+import os
+import re
+import sqlite3
+import sys
+import time
+import urllib.parse
+
+import requests
+
+API_KEY = os.environ.get("GOOGLE_API_KEY", "")
+DB = "leads.db"
+MIN_SCORE = 3
+
+NICHES = [
+    "shortlet apartments", "dental clinic", "aesthetics clinic", "spa",
+    "solar installation company", "boutique car dealer", "logistics company",
+    "event venue", "private school", "law firm", "gym",
+]
+AREAS = [
+    "Ikeja, Lagos", "Lekki, Lagos", "Victoria Island, Lagos", "Ikoyi, Lagos",
+    "Yaba, Lagos", "Surulere, Lagos", "Maitama, Abuja", "Wuse 2, Abuja",
+]
+
+# Sites that are really just social/link pages, not a proper website
+SOCIAL_HOSTS = (
+    "instagram.com", "facebook.com", "linktr.ee", "wa.me", "whatsapp.com",
+    "tiktok.com", "twitter.com", "x.com", "carrd.co", "beacons.ai",
+)
+
+PLACES_URL = "https://places.googleapis.com/v1/places:searchText"
+PSI_URL = "https://www.googleapis.com/pagespeedonline/v5/runPagespeed"
+FIELDS = ",".join([
+    "places.id", "places.displayName", "places.formattedAddress",
+    "places.internationalPhoneNumber", "places.websiteUri", "places.rating",
+    "places.userRatingCount", "places.googleMapsUri", "places.businessStatus",
+    "nextPageToken",
+])
+
+
+def get_db():
+    con = sqlite3.connect(DB)
+    con.execute("""CREATE TABLE IF NOT EXISTS leads(
+        id TEXT PRIMARY KEY, niche TEXT, area TEXT, name TEXT, address TEXT,
+        phone TEXT, website TEXT, rating REAL, reviews INTEGER, maps_url TEXT,
+        web_status TEXT, mobile_perf INTEGER, has_viewport INTEGER,
+        flaw TEXT, score INTEGER, status TEXT DEFAULT 'new', notes TEXT DEFAULT '')""")
+    return con
+
+
+def search(query, pages=2):
+    headers = {
+        "X-Goog-Api-Key": API_KEY,
+        "X-Goog-FieldMask": FIELDS,
+        "Content-Type": "application/json",
+    }
+    body = {"textQuery": query, "pageSize": 20}
+    for _ in range(pages):
+        r = requests.post(PLACES_URL, json=body, headers=headers, timeout=30)
+        r.raise_for_status()
+        data = r.json()
+        yield from data.get("places", [])
+        token = data.get("nextPageToken")
+        if not token:
+            break
+        body["pageToken"] = token
+        time.sleep(1)
+
+
+def audit(site):
+    """Returns (web_status, mobile_perf_0_100, has_viewport_0_1)."""
+    if not site:
+        return "none", None, None
+    host = urllib.parse.urlparse(site).netloc.lower()
+    if any(s in host for s in SOCIAL_HOSTS):
+        return "social_only", None, None
+    try:
+        html = requests.get(site, timeout=15, headers={"User-Agent": "Mozilla/5.0"}).text
+        viewport = int(bool(re.search(r'<meta[^>]+name=["\']viewport', html, re.I)))
+    except requests.RequestException:
+        return "dead", None, None
+    perf = None
+    try:
+        r = requests.get(PSI_URL, params={
+            "url": site, "strategy": "mobile", "category": "performance", "key": API_KEY,
+        }, timeout=90)
+        perf = round(r.json()["lighthouseResult"]["categories"]["performance"]["score"] * 100)
+    except Exception:
+        pass
+    return "live", perf, viewport
+
+
+def score(web, perf, viewport, reviews):
+    s, flaws = 0, []
+    if web == "none":
+        s += 4; flaws.append("no website")
+    elif web == "social_only":
+        s += 4; flaws.append("social/link page only")
+    elif web == "dead":
+        s += 4; flaws.append("website unreachable")
+    else:
+        if viewport == 0:
+            s += 3; flaws.append("not mobile-friendly (no viewport tag)")
+        if perf is not None and perf < 50:
+            s += 2; flaws.append(f"slow on mobile ({perf}/100)")
+    if (reviews or 0) >= 20:
+        s += 1  # established business, more likely to have budget
+    return s, "; ".join(flaws)
+
+
+def wa_link(phone, name):
+    digits = re.sub(r"\D", "", phone or "")
+    if not digits:
+        return ""
+    if digits.startswith("0"):
+        digits = "234" + digits[1:]
+    msg = (f"Hi, I came across {name} and noticed something about your online "
+           f"presence I'd like to help with. Can I send you a quick mockup?")
+    return f"https://wa.me/{digits}?text={urllib.parse.quote(msg)}"
+
+
+def collect(niche_filter=None, area_filter=None):
+    if not API_KEY:
+        sys.exit("Set GOOGLE_API_KEY first.")
+    con = get_db()
+    niches = [n for n in NICHES if not niche_filter or niche_filter.lower() in n.lower()]
+    areas = [a for a in AREAS if not area_filter or area_filter.lower() in a.lower()]
+    for niche in niches:
+        for area in areas:
+            print(f"Searching: {niche} in {area}")
+            new = 0
+            for p in search(f"{niche} in {area}"):
+                pid = p["id"]
+                if p.get("businessStatus") == "CLOSED_PERMANENTLY":
+                    continue
+                if con.execute("SELECT 1 FROM leads WHERE id=?", (pid,)).fetchone():
+                    continue  # already known; keep its status and notes
+                web, perf, vp = audit(p.get("websiteUri"))
+                reviews = p.get("userRatingCount")
+                sc, flaw = score(web, perf, vp, reviews)
+                con.execute(
+                    "INSERT INTO leads(id,niche,area,name,address,phone,website,rating,reviews,"
+                    "maps_url,web_status,mobile_perf,has_viewport,flaw,score) "
+                    "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    (pid, niche, area, p["displayName"]["text"], p.get("formattedAddress"),
+                     p.get("internationalPhoneNumber"), p.get("websiteUri"), p.get("rating"),
+                     reviews, p.get("googleMapsUri"), web, perf, vp, flaw, sc))
+                new += 1
+            con.commit()
+            print(f"  +{new} new")
+
+
+def export(path="leads.csv"):
+    con = get_db()
+    rows = con.execute(
+        "SELECT score,niche,area,name,phone,website,web_status,mobile_perf,flaw,rating,"
+        "reviews,maps_url,status,notes FROM leads WHERE score>=? "
+        "ORDER BY score DESC, reviews DESC", (MIN_SCORE,)).fetchall()
+    with open(path, "w", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        w.writerow(["score", "niche", "area", "name", "phone", "whatsapp_link", "website",
+                    "web_status", "mobile_perf", "flaw", "rating", "reviews", "maps_url",
+                    "status", "notes"])
+        for r in rows:
+            r = list(r)
+            r.insert(5, wa_link(r[4], r[3]))
+            w.writerow(r)
+    print(f"Wrote {len(rows)} leads to {path}")
+
+
+def mark(name, status):
+    con = get_db()
+    n = con.execute("UPDATE leads SET status=? WHERE name LIKE ?", (status, f"%{name}%")).rowcount
+    con.commit()
+    print(f"Updated {n} lead(s)")
+
+
+if __name__ == "__main__":
+    cmd = sys.argv[1] if len(sys.argv) > 1 else ""
+    if cmd == "collect":
+        collect(*(sys.argv[2:4]))
+    elif cmd == "export":
+        export()
+    elif cmd == "mark" and len(sys.argv) == 4:
+        mark(sys.argv[2], sys.argv[3])
+    else:
+        print(__doc__)
